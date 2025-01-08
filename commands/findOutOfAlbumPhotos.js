@@ -1,3 +1,4 @@
+
 import apiGooglePhotos from '../helpers/google-photos.js';
 
 const _mediaItems = {};
@@ -9,6 +10,7 @@ function storeMediaItems(mediaItems) {
         _mediaItems[mi.id] = mi.productUrl;
     }
 }
+
 function forgetMediaItems(mediaItems) {
     if (!mediaItems) { return; }
 
@@ -27,8 +29,7 @@ async function requestPagedRecursively(method, path, body, processResults, pageT
             }
 
             url += `pageToken=${pageToken}`;
-        }
-        else {
+        } else {
             body = body || {};
             body.pageToken = pageToken;
         }
@@ -50,6 +51,28 @@ function throwOnResultsError(results) {
     if (results.error) {
         throw new Error(`${results.error.code} : ${results.error.status} : ${results.error.message}`);
     }
+}
+
+async function createAlbum(albumTitle) {
+    const body = {
+        album: {
+            title: albumTitle
+        }
+    };
+
+    const result = await apiGooglePhotos.request('POST', '/albums', body);
+    throwOnResultsError(result);
+
+    return result.id;
+}
+
+async function addMediaItemsToAlbum(albumId, mediaItemIds) {
+    const body = {
+        mediaItemIds: mediaItemIds
+    };
+
+    const result = await apiGooglePhotos.request('POST', `/albums/${albumId}:batchAddMediaItems`, body);
+    throwOnResultsError(result);
 }
 
 async function runAsync(checkSharedAlbums) {
@@ -86,6 +109,9 @@ async function runAsync(checkSharedAlbums) {
     }
 
     if (Object.keys(_mediaItems).length) {
+        const albumId = await createAlbum('Undefined Album');
+        await addMediaItemsToAlbum(albumId, Object.keys(_mediaItems));
+
         const frag = document.createDocumentFragment(),
               table = document.createElement('table'),
               tableId = 'tableFindOutOfAlbumPhotos';
@@ -95,7 +121,6 @@ async function runAsync(checkSharedAlbums) {
                   tr = document.createElement('tr');
 
             tr.innerHTML =
-                //`<td>${id}<td>` +
                 `<td><a href='${url}' target='_blank'>${url}</a><td>`;
 
             table.appendChild(tr);
@@ -107,9 +132,9 @@ async function runAsync(checkSharedAlbums) {
         frag.appendChild(table);
 
         return frag;
-    }
-    else return 'No out-of-album photos found';
+    } else return 'No out-of-album photos found';
 }
+
 function createSaveLink(tableId) {
     const divContainer = document.createElement('div'),
           btnSave = document.createElement('button');
@@ -143,7 +168,7 @@ function createSaveLink(tableId) {
 export default [
     {
         name: 'Find out-of-album photos',
-        scopes: 'https://www.googleapis.com/auth/photoslibrary.readonly',
+        scopes: 'https://www.googleapis.com/auth/photoslibrary',
 
         async run() {
             try {
@@ -151,15 +176,14 @@ export default [
                 const output = await runAsync(false);
                 console.log('findOutOfAlbumPhotos : finished');
                 return output;
-            }
-            catch (err) {
+            } catch (err) {
                 return err.toString();
             }
         }
     },
     {
         name: 'Find out-of-album photos (including "shared" albums)',
-        scopes: 'https://www.googleapis.com/auth/photoslibrary.readonly',
+        scopes: 'https://www.googleapis.com/auth/photoslibrary',
 
         async run() {
             try {
@@ -167,10 +191,9 @@ export default [
                 const output = await runAsync(true);
                 console.log('findOutOfAlbumPhotos(w/shared) : finished');
                 return output;
-            }
-            catch (err) {
+            } catch (err) {
                 return err.toString();
             }
         }
     }
-]
+];
